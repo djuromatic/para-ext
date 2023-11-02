@@ -1,0 +1,136 @@
+name: Release Build
+on:
+  push:
+    tags:
+    - v[0-9]+.[0-9]+.[0-9]+*
+  workflow_dispatch:
+env:
+  SUBWASM_VERSION: 0.16.1
+jobs:
+  checks-and-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout the source code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install deps
+      run: sudo apt -y install protobuf-compiler
+
+    - name: Install & display rust toolchain
+      run: rustup show
+
+    - name: Check targets are installed correctly
+      run: rustup target list --installed
+
+    - name: Check all features compilation
+      run: cargo check --verbose --features try-runtime,runtime-benchmarks --locked
+
+    - name: Run all tests
+      run: cargo test --features try-runtime,runtime-benchmarks --locked
+
+  native-linux:
+    needs: checks-and-tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+        - x86_64-unknown-linux-gnu
+        - aarch64-unknown-linux-gnu
+
+    steps:
+    - name: Checkout the source code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install deps
+      run: sudo apt -y install protobuf-compiler
+
+    - name: aarch64 setup
+      if: contains(matrix.target, 'aarch64')
+      shell: bash
+      run: |
+        sudo apt update
+        sudo apt install -y gcc-multilib g++-multilib
+        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+        mkdir -p .cargo
+        touch .cargo/config
+        printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"' >> .cargo/config
+
+    - name: x86_64 setup
+      if: contains(matrix.target, 'x86_64')
+      run: |
+        mkdir -p .cargo
+        touch .cargo/config
+        printf '[target.x86_64-unknown-linux-gnu]\nrustflags = ["-Clink-arg=-fuse-ld=lld"]' >> .cargo/config
+
+    - name: Install & display rust toolchain
+      run: rustup show
+
+    - name: Add aarch64 target
+      if: contains(matrix.target, 'aarch64')
+      run: rustup target add ${{ matrix.target }}
+
+    - name: Check targets are installed correctly
+      run: rustup target list --installed
+
+    - name: Build optimized binary
+      run: CARGO_PROFILE_RELEASE_LTO=true RUSTFLAGS="-C codegen-units=1" cargo build --release --target ${{ matrix.target }} --verbose --locked
+
+    - name: Set artifact name
+      env:
+        TARGET: ${{ matrix.target }}
+      id: artifact-name
+      run: echo "::set-output name=name::pare-ext-ubuntu-latest-${TARGET%%-*}"
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: ${{ steps.artifact-name.outputs.name }}
+        path: target/${{ matrix.target }}/release/para-ext-collator
+
+  integration-tests:
+    needs: native-linux
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout the source code
+      uses: actions/checkout@v3
+
+    - run: mkdir -p integration-tests/bin
+
+    - name: Download pre-built linux collator binary
+      uses: actions/download-artifact@v3
+      with:
+        name: para-ext-ubuntu-latest-x86_64
+
+    - name: Make binary executable and copy it to integration tests folder
+      run: chmod +x para-ext-collator && cp para-ext-collator integration-tests/bin/para-ext-collator
+
+    - name: Copy polkadot relay chain binary
+      run: |
+        wget https://github.com/paritytech/polkadot/releases/download/v1.1.0/polkadot
+        chmod +x ./polkadot
+        mv polkadot integration-tests/bin/polkadot
+
+    - name: Copy zombinet testing binary
+      run: |
+        wget https://github.com/paritytech/zombienet/releases/download/v1.3.63/zombienet-linux-x64
+        chmod +x ./zombienet-linux-x64
+        mv zombienet-linux-x64 integration-tests/bin/zombienet-linux-x64
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v2
+      with:
+        node-version: 18.x
+
+    - name: Install yarn
+      run: |
+        npm install -g yarn
+        yarn install
+      working-directory: ./integration-tests
+
+    - name: Run tests
+      run: yarn test
+      working-directory: ./integration-tests
