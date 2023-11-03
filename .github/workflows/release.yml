@@ -104,7 +104,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: ${{ steps.artifact-name.outputs.name }}
-        path: target/${{ matrix.target }}/release/para-ext-collator
+        path: target/${{ matrix.target }}/release/parachain-template-node
 
   integration-tests:
     needs: native-linux
@@ -121,7 +121,7 @@ jobs:
         name: para-ext-ubuntu-latest-x86_64
 
     - name: Make binary executable and copy it to integration tests folder
-      run: chmod +x para-ext-collator && cp para-ext-collator integration-tests/bin/para-ext-collator
+      run: chmod +x parachain-template-node && cp parachain-template-node integration-tests/bin/parachain-template-node
 
     - name: Copy polkadot relay chain binary
       run: |
