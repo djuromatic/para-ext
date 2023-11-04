@@ -133,19 +133,19 @@ jobs:
       run: |
         wget https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.1.0/polkadot-execute-worker
         chmod +x ./polkadot-execute-worker
-        mv polkadot integration-tests/bin/polkadot-execute-worker
+        mv polkadot-execute-worker integration-tests/bin/polkadot-execute-worker
         
     - name: Copy polkadot-parachain binary
       run: |
         wget https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.1.0/polkadot-parachain
         chmod +x ./polkadot-parachain
-        mv polkadot integration-tests/bin/polkadot-parachain
+        mv polkadot-parachain integration-tests/bin/polkadot-parachain
 
     - name: Copy polkadot-parachain binary
       run: |
         wget https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.1.0/polkadot-prepare-worker
         chmod +x ./polkadot-prepare-worker
-        mv polkadot integration-tests/bin/polkadot-prepare-worker
+        mv polkadot-prepare-worker integration-tests/bin/polkadot-prepare-worker
 
     - name: Copy zombinet testing binary
       run: |
